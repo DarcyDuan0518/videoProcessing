@@ -1,0 +1,5 @@
+# Python packages for the offline video screening tool.
+# Tested target: Windows 10/11 + NVIDIA GPU. Install with scripts/install_windows.ps1.
+ultralytics>=8.3,<9
+opencv-python>=4.10,<5
+PyYAML>=6.0,<7

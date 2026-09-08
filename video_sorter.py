@@ -11,6 +11,7 @@ import argparse
 import csv
 import re
 import sys
+import time as time_module
 from dataclasses import dataclass
 from datetime import datetime, time
 from pathlib import Path
@@ -229,6 +230,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def format_duration(seconds: float) -> str:
+    """Format a duration for the console progress estimate."""
+    total_seconds = max(0, round(seconds))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}小时{minutes:02d}分"
+    if minutes:
+        return f"{minutes}分{seconds:02d}秒"
+    return f"{seconds}秒"
+
+
 def main() -> int:
     args = parse_args()
     if not args.input_dir.is_dir():
@@ -258,11 +271,22 @@ def main() -> int:
         print(f"无法加载 YOLO 模型：{error}", file=sys.stderr)
         return 3
 
-    print(f"找到 {len(videos)} 个视频；推理设备：{'NVIDIA GPU' if device == 0 else 'CPU'}")
+    print(f"找到 {len(videos)} 个视频；推理设备：{'NVIDIA GPU' if device == 0 else 'CPU'}", flush=True)
+    print("进度会在每个视频完成后更新；可按 Ctrl+C 停止，已中断的运行不生成完整报告。", flush=True)
     results: list[VideoResult] = []
     night_start, night_end = parse_clock(config["night"]["start"]), parse_clock(config["night"]["end"])
+    started_at = time_module.monotonic()
     for index, path in enumerate(videos, start=1):
         relative_path = str(path.relative_to(args.input_dir))
+        percent = (index - 1) / len(videos) * 100
+        elapsed_seconds = time_module.monotonic() - started_at
+        average_seconds = elapsed_seconds / (index - 1) if index > 1 else 0
+        remaining_seconds = average_seconds * (len(videos) - index + 1) if index > 1 else 0
+        eta = "计算中" if index == 1 else format_duration(remaining_seconds)
+        print(
+            f"[{index}/{len(videos)} | {percent:5.1f}% | 预计剩余 {eta}] 正在处理：{relative_path}",
+            flush=True,
+        )
         recorded_at = recorded_at_from_filename(path, config)
         is_night = "unknown" if recorded_at is None else ("yes" if within_night(recorded_at.time(), night_start, night_end) else "no")
         result = VideoResult(
@@ -271,7 +295,6 @@ def main() -> int:
             recorded_at="" if recorded_at is None else recorded_at.isoformat(sep=" "),
             is_night=is_night,
         )
-        print(f"[{index}/{len(videos)}] {relative_path}")
         try:
             result.sampled_frames, result.person_frames, result.max_person_count, result.baby_like_frames = sample_video(
                 path, model, device, config
@@ -285,6 +308,11 @@ def main() -> int:
             result.notes = str(error)
             print(f"  错误：{error}", file=sys.stderr)
         results.append(result)
+        completed_percent = index / len(videos) * 100
+        print(
+            f"  完成 {index}/{len(videos)}（{completed_percent:.1f}%）：{result.result or '处理完成'}",
+            flush=True,
+        )
 
     write_reports(args.output_dir, results, config)
     ok_count = sum(result.status == "ok" for result in results)

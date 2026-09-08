@@ -17,6 +17,19 @@
 
 ## 快速开始
 
+### Windows：双击启动（推荐）
+
+首次按 [部署与使用说明](docs/DEPLOYMENT.md) 创建 `.venv` 和完成 GPU 验证后，双击根目录的 [`run_video_sorter.bat`](run_video_sorter.bat)。脚本会询问视频目录、配置文件和报告名称，并在窗口中显示：
+
+- 当前处理的视频编号；
+- 总完成百分比；
+- 根据已完成视频估算的剩余时间；
+- 每段视频完成后的初步结果。
+
+正常完成后会自动打开本次报告目录。该脚本不执行删除或移动操作。
+
+### 命令行方式
+
 ```powershell
 # 首次部署：在项目根目录执行
 powershell -ExecutionPolicy Bypass -File .\scripts\install_windows.ps1

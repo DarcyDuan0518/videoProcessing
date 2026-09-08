@@ -1,0 +1,26 @@
+# currently not used yet because repo tool is not enabled 
+!.gitkeep
+*.idea
+*.vscode
+*.log
+*.s19
+*__pycache__
+*.hex
+*.log
+*.zip
+*.map
+*.dnm
+*.dla
+*.mak
+*.elf
+*.a
+*.dle
+*~$*.xls*
+data/
+__pycache__/
+.pytest_cache/
+.venv/
+reports/
+_two-video-test/
+yolo11n.pt
+config.yaml

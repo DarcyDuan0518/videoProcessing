@@ -28,9 +28,9 @@ if ($CpuOnly) {
 Write-Host ''
 Write-Host 'Installation completed.' -ForegroundColor Green
 Write-Host 'Next steps:'
-Write-Host '  1. Copy-Item .\config.example.yaml .\config.yaml'
-Write-Host '  2. Edit config.yaml to match the timestamp in your filenames.'
-Write-Host '  3. .\.venv\Scripts\python.exe .\video_sorter.py --input-dir "D:\Camera" --config .\config.yaml --output-dir .\reports'
+Write-Host '  1. Edit the single .\config.json file to match your camera filenames.'
+Write-Host '  2. Double-click .\run_video_sorter.bat, or run the command below.'
+Write-Host '  3. .\.venv\Scripts\python.exe .\video_sorter.py --input-dir "D:\Camera" --config .\config.json --output-dir .\reports'
 
 if (-not $CpuOnly) {
     Write-Host ''

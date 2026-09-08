@@ -1,0 +1,28 @@
+{
+  "说明": "家庭监控视频筛选配置。请用支持 UTF-8 的文本编辑器保存；JSON 的字段名、字符串和说明均可使用中文。不要删除英文配置键。",
+  "model": "yolo11n.pt",
+  "recursive": true,
+  "extensions": [".mp4", ".avi", ".mov", ".mkv"],
+  "sample_interval_seconds": 15,
+  "max_samples_per_video": 60,
+  "person_confidence": 0.35,
+  "baby_max_bbox_area_ratio": 0.12,
+  "baby_min_detections": 2,
+  "filename_time": {
+    "说明": "从文件名取得录制开始时间。当前规则适配 video_0446_0_10_20260905165246_20260905165756.mp4：使用第一个 14 位时间戳。若文件名无法提供可靠时间，请将 enabled 改为 false。",
+    "enabled": true,
+    "regex": "(?P<date>\\d{8})(?P<time>\\d{6})",
+    "date_format": "%Y%m%d",
+    "time_format": "%H%M%S"
+  },
+  "night": {
+    "说明": "允许跨日，例如 22:00 到次日 07:00。keep_videos_with_person=false 时，夜间有人视频也会列入可删除候选；true 时夜间有人视频保留。",
+    "start": "22:00",
+    "end": "08:30",
+    "keep_videos_with_person": false
+  },
+  "reports": {
+    "说明": "utf-8-sig 让 Windows Excel 正确显示中文。",
+    "csv_encoding": "utf-8-sig"
+  }
+}

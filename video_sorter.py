@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import re
 import sys
 import time as time_module
@@ -18,7 +19,6 @@ from pathlib import Path
 from typing import Any, Iterator
 
 import cv2
-import yaml
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "model": "yolo11n.pt",
@@ -73,10 +73,10 @@ def merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
 
 
 def load_config(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        loaded = yaml.safe_load(handle) or {}
+    with path.open("r", encoding="utf-8-sig") as handle:
+        loaded = json.load(handle)
     if not isinstance(loaded, dict):
-        raise ValueError("配置文件根节点必须是 YAML 对象。")
+        raise ValueError("配置文件根节点必须是 JSON 对象。")
     config = merge_dict(DEFAULT_CONFIG, loaded)
     if config["sample_interval_seconds"] <= 0 or config["max_samples_per_video"] <= 0:
         raise ValueError("sample_interval_seconds 和 max_samples_per_video 必须大于 0。")
@@ -225,7 +225,7 @@ def parse_args() -> argparse.Namespace:
         description="离线分析监控视频并生成复核清单；不会删除或移动任何视频。"
     )
     parser.add_argument("--input-dir", required=True, type=Path, help="视频根目录")
-    parser.add_argument("--config", required=True, type=Path, help="YAML 配置文件")
+    parser.add_argument("--config", required=True, type=Path, help="JSON 配置文件")
     parser.add_argument("--output-dir", required=True, type=Path, help="CSV 报告输出目录")
     return parser.parse_args()
 
@@ -252,7 +252,7 @@ def main() -> int:
         return 2
     try:
         config = load_config(args.config)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"配置无效：{error}", file=sys.stderr)
         return 2
 

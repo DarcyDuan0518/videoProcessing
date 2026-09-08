@@ -12,7 +12,7 @@
 ## 文档
 
 - [部署与使用说明](docs/DEPLOYMENT.md)：另一台 Windows + NVIDIA 电脑的一键安装与运行步骤。
-- [配置参考](docs/CONFIGURATION.md)：采样频率、文件名时间规则、夜间保留策略和检测阈值。
+- [配置参考](docs/CONFIGURATION.md)：唯一的 `config.json` 配置文件、采样频率、文件名时间规则、夜间保留策略和检测阈值。
 - [Agent 需求提示词](docs/AGENT_PROMPT.md)：将当前需求整理为可直接交给 Agent 的提示词。
 
 ## 快速开始
@@ -34,14 +34,13 @@
 # 首次部署：在项目根目录执行
 powershell -ExecutionPolicy Bypass -File .\scripts\install_windows.ps1
 
-# 复制配置并按实际视频文件名调整
-Copy-Item .\config.example.yaml .\config.yaml
-notepad .\config.yaml
+# 编辑唯一的 JSON 配置文件；可直接编辑中文说明和参数
+notepad .\config.json
 
 # 仅生成报告（不会删除、移动或修改视频）
 .\.venv\Scripts\python.exe .\video_sorter.py `
   --input-dir "D:\Camera\2026-09" `
-  --config .\config.yaml `
+  --config .\config.json `
   --output-dir .\reports\2026-09
 ```
 

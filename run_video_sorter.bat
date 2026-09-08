@@ -7,7 +7,7 @@ set "PROJECT_DIR=%~dp0"
 cd /d "%PROJECT_DIR%"
 set "PYTHON=%PROJECT_DIR%.venv\Scripts\python.exe"
 set "SORTER=%PROJECT_DIR%video_sorter.py"
-set "DEFAULT_CONFIG=%PROJECT_DIR%config.yaml"
+set "DEFAULT_CONFIG=%PROJECT_DIR%config.json"
 
 cls
 echo ============================================================
@@ -35,16 +35,11 @@ if not exist "%SORTER%" (
 )
 
 if not exist "%DEFAULT_CONFIG%" (
-    if exist "%PROJECT_DIR%config.example.yaml" (
-        copy /y "%PROJECT_DIR%config.example.yaml" "%DEFAULT_CONFIG%" >nul
-        echo [INFO] Created config.yaml from config.example.yaml.
-        echo Review timestamp and night settings before analyzing full archives.
-    ) else (
-        echo [ERROR] config.yaml and config.example.yaml were not found.
-        echo.
-        pause
-        exit /b 1
-    )
+    echo [ERROR] config.json was not found.
+    echo Keep the single config.json file in the project root directory.
+    echo.
+    pause
+    exit /b 1
 )
 
 echo.
@@ -63,7 +58,7 @@ if not exist "%INPUT_DIR%" (
 
 echo.
 echo Default configuration: %DEFAULT_CONFIG%
-echo Press Enter to use the default, or enter another YAML file path.
+echo Press Enter to use the default, or enter another JSON file path.
 set /p "CONFIG_FILE=Configuration file: "
 if "%CONFIG_FILE%"=="" set "CONFIG_FILE=%DEFAULT_CONFIG%"
 

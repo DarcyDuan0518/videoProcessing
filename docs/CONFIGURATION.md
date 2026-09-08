@@ -1,10 +1,45 @@
 # 配置参考
 
-配置文件为 YAML。推荐从根目录的 `config.example.yaml` 复制为 `config.yaml` 后修改。
+项目只使用根目录中的一个配置文件：`config.json`。它是 **UTF-8 JSON** 文件，支持中文说明和中文字符串；可用 Windows 记事本编辑。
+
+> 请不要删除英文参数键；它们由程序读取。修改字符串时保留双引号，最后一个字段后不要添加逗号。`true` / `false` 必须使用小写英文；禁用可选项时使用 `null`。
+
+## 当前视频文件名的时间规则
+
+当前 `config.json` 已适配测试视频命名格式：
+
+```text
+video_0446_0_10_20260905165246_20260905165756.mp4
+                  ^^^^^^^^^^^^^^ 第一个时间戳：录制开始时间
+```
+
+对应配置片段：
+
+```json
+"filename_time": {
+  "enabled": true,
+  "regex": "(?P<date>\\d{8})(?P<time>\\d{6})",
+  "date_format": "%Y%m%d",
+  "time_format": "%H%M%S"
+}
+```
+
+`regex` 必须定义 `date` 和 `time` 两个命名分组。如果无法从文件名取得可靠的录制时间，把 `enabled` 改为 `false`；此时 `is_night` 会显示 `unknown`，程序不会只因夜间规则将文件写入删除候选。
+
+例如文件名为 `Camera_20260907_221530.mp4`，可改为：
+
+```json
+"filename_time": {
+  "enabled": true,
+  "regex": "(?P<date>\\d{8})[_-]?(?P<time>\\d{6})",
+  "date_format": "%Y%m%d",
+  "time_format": "%H%M%S"
+}
+```
 
 ## 检测与性能
 
-| 字段 | 默认值 | 说明 |
+| 参数键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `model` | `yolo11n.pt` | YOLO 权重路径或模型名。`n` 最快；可尝试 `yolo11s.pt` 获取更高精度。 |
 | `recursive` | `true` | 是否扫描输入目录的子目录。 |
@@ -19,49 +54,21 @@ YOLO 的 COCO `person` 类用于“是否有人”判定。任一采样帧检测
 
 通用 COCO YOLO 模型没有“婴儿”类别。因此本工具只把较小的人体框作为“可能婴儿”的线索：
 
-| 字段 | 默认值 | 说明 |
+| 参数键 | 默认值 | 说明 |
 | --- | --- | --- |
 | `baby_max_bbox_area_ratio` | `0.12` | 人框面积不高于画面面积的此比例，就算一个 baby-like 命中。设为 `null` 可禁用婴儿判断。 |
 | `baby_min_detections` | `2` | 至少命中多少个采样帧，才标记“疑似有婴儿”。 |
 
 此规则会把远处成人、被抱着的婴儿、被子覆盖的人等情况误判或漏判。它的用途只是优先级排序，不能据此删除重要视频。若后续需要高精度婴儿检测，应收集获得授权的、与该摄像头角度和光照相符的训练数据，训练与验证专用模型。
 
-## 根据文件名识别录制时间
-
-```yaml
-filename_time:
-  enabled: true
-  regex: "(?P<date>\\d{8})[_-]?(?P<time>\\d{6})"
-  date_format: "%Y%m%d"
-  time_format: "%H%M%S"
-```
-
-`regex` 必须定义名为 `date` 和 `time` 的分组。默认适用：
-
-```text
-Camera_20260907_221530.mp4
-              ^date   ^time
-```
-
-如果文件名是 `2026-09-07_22-15-30.mp4`，可以配置为：
-
-```yaml
-filename_time:
-  enabled: true
-  regex: "(?P<date>\\d{4}-\\d{2}-\\d{2})_(?P<time>\\d{2}-\\d{2}-\\d{2})"
-  date_format: "%Y-%m-%d"
-  time_format: "%H-%M-%S"
-```
-
-如果时间无法可靠地从文件名取得，设为 `enabled: false`。此时 `is_night` 会是 `unknown`，程序不会仅因夜间规则把文件写入删除候选。
-
 ## 夜间保留规则
 
-```yaml
-night:
-  start: "22:00"
-  end: "07:00"
-  keep_videos_with_person: false
+```json
+"night": {
+  "start": "22:00",
+  "end": "08:30",
+  "keep_videos_with_person": false
+}
 ```
 
 - 支持跨日范围；`22:00`–`07:00` 指当天 22:00 起到次日 07:00 前。

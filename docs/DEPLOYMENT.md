@@ -98,7 +98,7 @@ GPU 版 PyTorch 安装成功后，再安装本项目的其余依赖：
 
 - `ultralytics`：YOLO 人体检测；
 - `opencv-python`：读取视频与抽帧；
-- `PyYAML`：读取 YAML 配置。
+- 配置文件使用 Python 内置 JSON 解析，不需要额外配置文件解析库。
 
 首次分析会下载 `yolo11n.pt` 模型权重。若目标电脑不能联网，请在有网络的电脑先运行一次，再将已下载的权重文件复制到目标电脑并把 `model` 配置成该权重的绝对路径。
 
@@ -134,11 +134,10 @@ CPU 可以运行，但处理上千个视频会明显更慢。
 
 ## 6. 配置
 
-复制示例并编辑：
+使用项目根目录中唯一的 `config.json`，可直接编辑：
 
 ```powershell
-Copy-Item .\config.example.yaml .\config.yaml
-notepad .\config.yaml
+notepad .\config.json
 ```
 
 重点确认：
@@ -160,7 +159,7 @@ notepad .\config.yaml
 ```powershell
 .\.venv\Scripts\python.exe .\video_sorter.py `
   --input-dir "D:\CameraTest" `
-  --config .\config.yaml `
+  --config .\config.json `
   --output-dir .\reports\test
 ```
 
@@ -170,11 +169,11 @@ notepad .\config.yaml
 
 ### 双击 BAT 启动器（推荐）
 
-在完成依赖安装、GPU 验证并检查 `config.yaml` 后，双击项目根目录的 `run_video_sorter.bat`。它会：
+在完成依赖安装、GPU 验证并检查 `config.json` 后，双击项目根目录的 `run_video_sorter.bat`。它会：
 
-1. 检查 `.venv`、主程序和配置文件是否存在；首次运行时自动从 `config.example.yaml` 创建 `config.yaml`；
+1. 检查 `.venv`、主程序和唯一的 `config.json` 配置文件是否存在；
 2. 询问视频输入目录（直接回车仅使用项目 `data` 测试目录）；
-3. 询问配置文件路径（直接回车使用 `config.yaml`）；
+3. 询问配置文件路径（直接回车使用 `config.json`）；
 4. 询问报告名称，并在 `reports` 下创建独立目录；
 5. 启动分析，实时显示当前文件编号、处理百分比、预计剩余时间及每个视频的初步结果；
 6. 分析成功后自动打开本次报告目录。
@@ -188,7 +187,7 @@ notepad .\config.yaml
 ```powershell
 .\.venv\Scripts\python.exe .\video_sorter.py `
   --input-dir "E:\CameraArchive" `
-  --config .\config.yaml `
+  --config .\config.json `
   --output-dir .\reports\2026-09-07
 ```
 

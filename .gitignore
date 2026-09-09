@@ -21,5 +21,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 reports/
+20260906/
 _two-video-test/
 yolo11n.pt

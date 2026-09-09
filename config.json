@@ -3,11 +3,16 @@
   "model": "yolo11n.pt",
   "recursive": true,
   "extensions": [".mp4", ".avi", ".mov", ".mkv"],
-  "sample_interval_seconds": 15,
-  "max_samples_per_video": 60,
+  "sample_interval_seconds": 30,
+  "max_samples_per_video": 30,
   "person_confidence": 0.35,
-  "baby_max_bbox_area_ratio": 0.12,
-  "baby_min_detections": 2,
+  "inference": {
+    "说明": "batch_size 是单次 YOLO 调用内部使用的 GPU 批量上限；full_video_batch=true 时，某视频的所有采样帧会在一次 YOLO 调用中提交。decoder_workers 是并发读取和解码视频的 CPU 线程数；当前 E: 为机械硬盘，实测 2 比 1 更快，建议保持 2；只有将视频放到 SSD 后再测试 3–4。full_video_batch=true 与 stop_after_person_detected=true 不能同时启用。",
+    "batch_size": 16,
+    "decoder_workers": 4,
+    "full_video_batch": true,
+    "stop_after_person_detected": false
+  },
   "filename_time": {
     "说明": "从文件名取得录制开始时间。当前规则适配 video_0446_0_10_20260905165246_20260905165756.mp4：使用第一个 14 位时间戳。若文件名无法提供可靠时间，请将 enabled 改为 false。",
     "enabled": true,
@@ -17,12 +22,21 @@
   },
   "night": {
     "说明": "允许跨日，例如 22:00 到次日 07:00。keep_videos_with_person=false 时，夜间有人视频也会列入可删除候选；true 时夜间有人视频保留。",
-    "start": "22:00",
-    "end": "08:30",
+    "start": "21:30",
+    "end": "07:45",
     "keep_videos_with_person": false
   },
   "reports": {
     "说明": "utf-8-sig 让 Windows Excel 正确显示中文。",
     "csv_encoding": "utf-8-sig"
+  },
+  "deletion": {
+    "说明": "运行 move_candidates_to_removable_folder.bat 时使用。移动脚本会自动读取 launch.output_dir 中与当前源视频目录对应的检查报告，并立即移动其中的可删除候选；target_folder_name 是源视频目录内用于存放候选的子目录，扫描时会自动跳过它及其后代目录。",
+    "target_folder_name": "可删除"
+  },
+  "launch": {
+    "说明": "双击 run_video_sorter.bat 时使用的路径。相对路径以本 config.json 所在目录为准；每次完成检查都会覆盖 output_dir 中同一源视频目录的旧报告。",
+    "input_dir": "20260906",
+    "output_dir": "reports"
   }
 }

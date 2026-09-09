@@ -37,6 +37,74 @@ video_0446_0_10_20260905165246_20260905165756.mp4
 }
 ```
 
+## 启动文件夹与检查报告
+
+双击 `run_video_sorter.bat` 时，视频输入目录和报告输出目录都从 `launch` 读取，不会询问任何输入参数：
+
+```json
+"launch": {
+  "input_dir": "data",
+  "output_dir": "reports"
+}
+```
+
+- `input_dir`：要扫描的视频根目录。可写绝对路径，如 `E:\\CameraArchive`；也可写相对路径，如默认的 `data`，相对 `config.json` 所在目录。
+- `output_dir`：检查报告目录。每个源视频目录仅对应一个固定报告文件；每次成功完成检查会直接覆盖该源目录的旧报告。
+
+例如，要处理 `E:\CameraArchive` 并把报告保存到 `D:\VideoReports`，设置为：
+
+```json
+"launch": {
+  "input_dir": "E:\\CameraArchive",
+  "output_dir": "D:\\VideoReports"
+}
+```
+
+临时测试时仍可通过命令行覆盖这些设置：
+
+```powershell
+.\.venv\Scripts\python.exe .\video_sorter.py `
+  --input-dir "D:\CameraTest" `
+  --config .\config.json `
+  --output-dir .\reports\manual-test
+```
+
+## 可删除文件夹与移动配置
+
+每个源视频目录的检查报告固定命名为：
+
+```text
+report_<源视频目录名>.csv
+```
+
+例如源目录为 `20260906`、报告目录为 `reports` 时，报告固定为：
+
+```text
+reports\report_20260906.csv
+```
+
+下次完成对 `20260906` 的检查时，程序会直接覆盖这个报告，不保留时间戳副本。识别过程未成功完成时，不会覆盖之前已有的完整报告。
+
+人工复核报告中的 `可删除候选` 后，直接双击 `move_candidates_to_removable_folder.bat`。脚本会自动根据当前 `launch.input_dir` 和 `launch.output_dir` 读取对应的固定报告，不需要填写报告路径，也不接受命令行参数；它会立即开始移动其中的合格候选。
+
+```json
+"launch": {
+  "input_dir": "20260906",
+  "output_dir": "reports"
+},
+"deletion": {
+  "target_folder_name": "可删除"
+}
+```
+
+- `launch.input_dir`：源视频根目录；CSV 中的 `relative_path` 只能在这个目录下解析。
+- `launch.output_dir`：固定检查报告所在目录。
+- `deletion.target_folder_name`：源视频目录内存放候选文件的子文件夹。脚本自动创建它，并保留原始相对目录结构。例如 `camera-a\\clip.mp4` 会移动至 `可删除\\camera-a\\clip.mp4`。
+- 扫描时会自动跳过名为 `target_folder_name` 的目录及其所有子目录，因此已移入的候选不会在下一次识别时被重复扫描。
+- 候选源文件若已不存在，会标记为 `already_absent` 后安静跳过；目标路径已存在时标记为 `target_exists`，绝不覆盖，也会继续处理其他候选。
+
+移动脚本不要求输入确认文本，也不会生成移动审计 CSV；控制台会显示每个文件的移动结果和最终汇总。
+
 ## 检测与性能
 
 | 参数键 | 默认值 | 说明 |
@@ -47,19 +115,16 @@ video_0446_0_10_20260905165246_20260905165756.mp4
 | `sample_interval_seconds` | `15` | 每隔几秒抽取一帧。更小能降低短暂出现的人被漏检的概率，但更慢。 |
 | `max_samples_per_video` | `60` | 单段视频最多抽取的帧数，避免超长视频耗时失控。 |
 | `person_confidence` | `0.35` | 人体置信度阈值。夜视漏检多可试 `0.25`；误检多可提高到 `0.45`。 |
+| `inference.batch_size` | `8` | 每次 YOLO 调用内部使用的 GPU 批量上限。`full_video_batch: true` 时会将同一视频的完整采样帧列表一次交给 YOLO，再由这个值控制内部批次；单块 6 GB GPU 建议从 `8` 或 `16` 开始。若出现 CUDA 显存不足，依次改为 `8`、`4`、`2`、`1`。 |
+| `inference.decoder_workers` | `2` | 并发读取与解码不同视频的 CPU 工作线程数。当前 E: 机械硬盘的两视频实测中，`2` 优于 `1`；输入位于本地 NVMe SSD 时可依次测试 `3`、`4`。不要超过 CPU 核心数，也不要启动多个完整程序进程。 |
+| `inference.full_video_batch` | `true` | 先按固定间隔读取一个视频的全部采样帧，再将该完整帧列表一次交给 YOLO。适合持续向 GPU 提供大任务；与 `stop_after_person_detected: true` 不兼容。 |
+| `inference.stop_after_person_detected` | `false` | 任一 GPU 推理批次检测到人后，停止该视频后续的抽帧与推理。用于只关心“是否有人”的快速筛选。启用时必须把 `full_video_batch` 设为 `false`。 |
 
-YOLO 的 COCO `person` 类用于“是否有人”判定。任一采样帧检测到人，即该视频视为有人。
+YOLO 的 COCO `person` 类用于“是否有人”判定。任一采样帧检测到人，即该视频标记为“检测到人”；未检测到人或按夜间规则直接跳过识别的视频标记为“可删除候选”，均须人工复核。
 
-## 婴儿启发式（可选）
+程序会以有限数量的 CPU 解码线程预读不同视频，并使用一个 YOLO/CUDA 模型推理；当前 E: 机械硬盘上的两视频基准显示 `decoder_workers: 2` 比 `1` 更快，故默认使用 `2`。`full_video_batch: true` 时，CPU 先按固定间隔读取一个视频的全部采样帧，GPU 再通过一次 YOLO 调用接收该帧组，以 `batch_size` 限制内部显存批次；同时解码线程继续读取其他视频，形成解码—推理流水线。不要同时启动多个 `run_video_sorter.bat` 进程，它们会重复加载模型、争抢 6 GB 显存且通常更慢。
 
-通用 COCO YOLO 模型没有“婴儿”类别。因此本工具只把较小的人体框作为“可能婴儿”的线索：
-
-| 参数键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `baby_max_bbox_area_ratio` | `0.12` | 人框面积不高于画面面积的此比例，就算一个 baby-like 命中。设为 `null` 可禁用婴儿判断。 |
-| `baby_min_detections` | `2` | 至少命中多少个采样帧，才标记“疑似有婴儿”。 |
-
-此规则会把远处成人、被抱着的婴儿、被子覆盖的人等情况误判或漏判。它的用途只是优先级排序，不能据此删除重要视频。若后续需要高精度婴儿检测，应收集获得授权的、与该摄像头角度和光照相符的训练数据，训练与验证专用模型。
+夜间规则会影响是否推理：`keep_videos_with_person: false` 时，能从文件名识别为夜间的视频会直接成为候选，`processing_mode` 为 `night_direct_candidate`，不会读取或推理视频；`true` 时完全不判断夜间，所有视频都正常推理，`is_night` 记为 `not_checked`。
 
 ## 夜间保留规则
 
@@ -72,8 +137,8 @@ YOLO 的 COCO `person` 类用于“是否有人”判定。任一采样帧检测
 ```
 
 - 支持跨日范围；`22:00`–`07:00` 指当天 22:00 起到次日 07:00 前。
-- `keep_videos_with_person: false`：所有时间落在夜间的视频都会成为可删除候选；无人视频无论白天/夜间同样成为候选。
-- `keep_videos_with_person: true`：仅无人视频成为候选，夜间有人视频不成为候选。
+- `keep_videos_with_person: false`：能从文件名判断为夜间的视频直接进入可删除候选，不读取或推理；白天视频仍会推理，未检测到人的白天视频同样进入候选。文件名时间无法解析时仍会正常推理。
+- `keep_videos_with_person: true`：不判断夜间，所有视频都按普通视频推理；只有未检测到人的视频进入候选。
 - 时间点恰好为 `end` 时不属于夜间，例如 `07:00` 不属于 `22:00`–`07:00`。
 
 ## 报告编码

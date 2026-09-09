@@ -41,7 +41,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "date_format": "%Y%m%d",
         "time_format": "%H%M%S",
     },
-    "night": {"start": "22:00", "end": "07:00", "keep_videos_with_person": False},
+    "night": {
+        "direct_candidate_start": "23:00",
+        "direct_candidate_end": "07:00",
+        "two_person_windows": [
+            {"start": "21:00", "end": "23:00"},
+            {"start": "07:00", "end": "08:00"},
+        ],
+        "keep_videos_with_person": False,
+    },
     "reports": {"csv_encoding": "utf-8-sig"},
     "deletion": {"target_folder_name": "可删除"},
     "launch": {
@@ -113,8 +121,18 @@ def load_config(path: Path) -> dict[str, Any]:
         raise ValueError("inference.full_video_batch 必须是 true 或 false。")
     if config["inference"]["full_video_batch"] and config["inference"]["stop_after_person_detected"]:
         raise ValueError("full_video_batch=true 时 stop_after_person_detected 必须为 false。")
-    parse_clock(config["night"]["start"])
-    parse_clock(config["night"]["end"])
+    night = config["night"]
+    if not isinstance(night["keep_videos_with_person"], bool):
+        raise ValueError("night.keep_videos_with_person 必须是 true 或 false。")
+    parse_clock(night["direct_candidate_start"])
+    parse_clock(night["direct_candidate_end"])
+    if not isinstance(night["two_person_windows"], list):
+        raise ValueError("night.two_person_windows 必须是时间段列表。")
+    for index, window in enumerate(night["two_person_windows"], start=1):
+        if not isinstance(window, dict) or not isinstance(window.get("start"), str) or not isinstance(window.get("end"), str):
+            raise ValueError(f"night.two_person_windows[{index}] 必须包含 start 和 end 时间字符串。")
+        parse_clock(window["start"])
+        parse_clock(window["end"])
     if config["filename_time"]["enabled"]:
         pattern = config["filename_time"]["regex"]
         if "?P<date>" not in pattern or "?P<time>" not in pattern:
@@ -144,6 +162,23 @@ def within_night(value: time, start: time, end: time) -> bool:
     if start < end:
         return start <= value < end
     return value >= start or value < end
+
+
+def time_rule_for(recorded_at: datetime | None, config: dict[str, Any]) -> tuple[str, str]:
+    """Return the inference rule and report time status for a video timestamp."""
+    if config["night"]["keep_videos_with_person"]:
+        return "inferred", "not_checked"
+    if recorded_at is None:
+        return "inferred", "unknown"
+
+    recorded_time = recorded_at.time()
+    night = config["night"]
+    if within_night(recorded_time, parse_clock(night["direct_candidate_start"]), parse_clock(night["direct_candidate_end"])):
+        return "night_direct_candidate", "yes"
+    for window in night["two_person_windows"]:
+        if within_night(recorded_time, parse_clock(window["start"]), parse_clock(window["end"])):
+            return "two_person_required", "transition"
+    return "inferred", "no"
 
 
 def recorded_at_from_filename(path: Path, config: dict[str, Any]) -> datetime | None:
@@ -265,11 +300,15 @@ def iter_decoded_videos(videos: list[tuple[int, Path]], config: dict[str, Any]) 
 
 
 def classify_result(result: VideoResult, config: dict[str, Any]) -> tuple[str, str]:
-    """Classify a video as a candidate or as containing at least one person."""
+    """Classify a video according to its time rule and detected person count."""
     if result.processing_mode == "night_direct_candidate":
-        return "可删除候选", "夜间视频且配置为不保留夜间有人视频；未读取或推理视频"
+        return "可删除候选", "深夜直入候选时段；未读取或推理视频"
     if result.person_frames == 0:
         return "可删除候选", "未在采样帧中检测到人"
+    if result.processing_mode == "two_person_required" and result.max_person_count < 2:
+        return "可删除候选", "过渡时段仅检测到 1 人；该时段需要同一采样帧至少检测到 2 人才保留"
+    if result.processing_mode == "two_person_required":
+        return "检测到人", "过渡时段同一采样帧检测到至少 2 人"
     return "检测到人", "至少一个采样帧检测到人"
 
 
@@ -369,33 +408,37 @@ def main() -> int:
         f"找到 {len(videos)} 个视频；推理设备：{'NVIDIA GPU' if device == 0 else 'CPU'}；GPU 内部批量大小：{config['inference']['batch_size']}；解码工作线程：{config['inference']['decoder_workers']}",
         flush=True,
     )
-    night_start, night_end = parse_clock(config["night"]["start"]), parse_clock(config["night"]["end"])
     results_by_index: dict[int, VideoResult] = {}
     videos_to_infer: list[tuple[int, Path]] = []
-    skip_night_inference = not config["night"]["keep_videos_with_person"]
+    direct_count = transition_count = normal_count = 0
     for index, path in enumerate(videos, start=1):
         recorded_at = recorded_at_from_filename(path, config)
-        is_night = "not_checked" if not skip_night_inference else (
-            "unknown" if recorded_at is None else ("yes" if within_night(recorded_at.time(), night_start, night_end) else "no")
-        )
+        processing_mode, is_night = time_rule_for(recorded_at, config)
         result = VideoResult(
             relative_path=str(path.relative_to(input_dir)),
             status="ok",
             recorded_at="" if recorded_at is None else recorded_at.isoformat(sep=" "),
             is_night=is_night,
+            processing_mode=processing_mode,
         )
-        if is_night == "yes":
-            result.processing_mode = "night_direct_candidate"
+        if processing_mode == "night_direct_candidate":
             result.result, result.notes = classify_result(result, config)
             results_by_index[index] = result
+            direct_count += 1
             continue
+        if processing_mode == "two_person_required":
+            transition_count += 1
+        else:
+            normal_count += 1
         videos_to_infer.append((index, path))
 
-    direct_count = len(videos) - len(videos_to_infer)
-    if skip_night_inference:
-        print(f"夜间直入候选：{direct_count} 个；其余 {len(videos_to_infer)} 个视频进入解码与 GPU 推理流水线。", flush=True)
+    if config["night"]["keep_videos_with_person"]:
+        print(f"已禁用夜间时间判断；全部 {len(videos_to_infer)} 个视频按检测到至少 1 人的规则识别。", flush=True)
     else:
-        print(f"已禁用夜间时间判断；全部 {len(videos_to_infer)} 个视频进入解码与 GPU 推理流水线。", flush=True)
+        print(
+            f"深夜直入候选：{direct_count} 个；过渡时段需至少 2 人识别：{transition_count} 个；普通识别：{normal_count} 个。",
+            flush=True,
+        )
 
     run_started_at = datetime.now()
     started_at = time_module.monotonic()
@@ -416,11 +459,13 @@ def main() -> int:
             flush=True,
         )
         recorded_at = recorded_at_from_filename(decoded.path, config)
+        processing_mode, is_night = time_rule_for(recorded_at, config)
         result = VideoResult(
             relative_path=relative_path,
             status="ok",
             recorded_at="" if recorded_at is None else recorded_at.isoformat(sep=" "),
-            is_night="not_checked" if not skip_night_inference else "no",
+            is_night=is_night,
+            processing_mode=processing_mode,
         )
         try:
             if decoded.error:

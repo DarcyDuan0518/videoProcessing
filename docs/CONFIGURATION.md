@@ -120,26 +120,32 @@ reports\report_20260906.csv
 | `inference.full_video_batch` | `true` | 先按固定间隔读取一个视频的全部采样帧，再将该完整帧列表一次交给 YOLO。适合持续向 GPU 提供大任务；与 `stop_after_person_detected: true` 不兼容。 |
 | `inference.stop_after_person_detected` | `false` | 任一 GPU 推理批次检测到人后，停止该视频后续的抽帧与推理。用于只关心“是否有人”的快速筛选。启用时必须把 `full_video_batch` 设为 `false`。 |
 
-YOLO 的 COCO `person` 类用于“是否有人”判定。任一采样帧检测到人，即该视频标记为“检测到人”；未检测到人或按夜间规则直接跳过识别的视频标记为“可删除候选”，均须人工复核。
+YOLO 的 COCO `person` 类用于“是否有人”判定。普通时段任一采样帧检测到人即标记为“检测到人”；过渡时段要求同一采样帧至少检测到 2 人才保留；未检测到人、过渡时段最多仅 1 人或按深夜规则直接跳过识别的视频标记为“可删除候选”，均须人工复核。
 
 程序会以有限数量的 CPU 解码线程预读不同视频，并使用一个 YOLO/CUDA 模型推理；当前 E: 机械硬盘上的两视频基准显示 `decoder_workers: 2` 比 `1` 更快，故默认使用 `2`。`full_video_batch: true` 时，CPU 先按固定间隔读取一个视频的全部采样帧，GPU 再通过一次 YOLO 调用接收该帧组，以 `batch_size` 限制内部显存批次；同时解码线程继续读取其他视频，形成解码—推理流水线。不要同时启动多个 `run_video_sorter.bat` 进程，它们会重复加载模型、争抢 6 GB 显存且通常更慢。
-
-夜间规则会影响是否推理：`keep_videos_with_person: false` 时，能从文件名识别为夜间的视频会直接成为候选，`processing_mode` 为 `night_direct_candidate`，不会读取或推理视频；`true` 时完全不判断夜间，所有视频都正常推理，`is_night` 记为 `not_checked`。
 
 ## 夜间保留规则
 
 ```json
 "night": {
-  "start": "22:00",
-  "end": "08:30",
+  "direct_candidate_start": "23:00",
+  "direct_candidate_end": "07:00",
+  "two_person_windows": [
+    {"start": "21:00", "end": "23:00"},
+    {"start": "07:00", "end": "08:00"}
+  ],
   "keep_videos_with_person": false
 }
 ```
 
-- 支持跨日范围；`22:00`–`07:00` 指当天 22:00 起到次日 07:00 前。
-- `keep_videos_with_person: false`：能从文件名判断为夜间的视频直接进入可删除候选，不读取或推理；白天视频仍会推理，未检测到人的白天视频同样进入候选。文件名时间无法解析时仍会正常推理。
-- `keep_videos_with_person: true`：不判断夜间，所有视频都按普通视频推理；只有未检测到人的视频进入候选。
-- 时间点恰好为 `end` 时不属于夜间，例如 `07:00` 不属于 `22:00`–`07:00`。
+以下所有时间段均为**开始时间包含、结束时间不包含**，并优先根据文件名中的录制开始时间判断：
+
+- `keep_videos_with_person: false`：
+  - `direct_candidate_start`–`direct_candidate_end`：默认 `23:00`–次日 `07:00`。深夜视频直接进入可删除候选，不读取或推理，`processing_mode` 为 `night_direct_candidate`。
+  - `two_person_windows`：默认 `21:00`–`23:00`、`07:00`–`08:00`。这些过渡时段仍会推理，但只有**同一采样帧**检测到至少 2 人才保留；0 或 1 人均进入可删除候选，`processing_mode` 为 `two_person_required`。
+  - 其余时间：正常推理，任一采样帧检测到至少 1 人即保留。
+  - 文件名时间无法解析时：正常按“至少 1 人保留”推理，绝不会仅因时间规则成为候选。
+- `keep_videos_with_person: true`：完全不判断这些时间段，所有视频均按普通规则推理；任一采样帧检测到至少 1 人即保留，`is_night` 为 `not_checked`。
 
 ## 报告编码
 

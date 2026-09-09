@@ -21,9 +21,13 @@
     "time_format": "%H%M%S"
   },
   "night": {
-    "说明": "允许跨日，例如 22:00 到次日 07:00。keep_videos_with_person=false 时，夜间有人视频也会列入可删除候选；true 时夜间有人视频保留。",
-    "start": "21:30",
-    "end": "07:45",
+    "说明": "仅在 keep_videos_with_person=false 时生效：23:00（含）至次日 07:00（不含）的深夜视频直接列为可删除候选、不识别；21:00（含）至 23:00（不含）及 07:00（含）至 08:00（不含）的过渡时段需要同一采样帧至少检测到 2 人才保留；其余时间检测到至少 1 人即保留。",
+    "direct_candidate_start": "23:00",
+    "direct_candidate_end": "07:00",
+    "two_person_windows": [
+      {"start": "20:30", "end": "23:00"},
+      {"start": "07:00", "end": "08:30"}
+    ],
     "keep_videos_with_person": false
   },
   "reports": {
@@ -36,7 +40,7 @@
   },
   "launch": {
     "说明": "双击 run_video_sorter.bat 时使用的路径。相对路径以本 config.json 所在目录为准；每次完成检查都会覆盖 output_dir 中同一源视频目录的旧报告。",
-    "input_dir": "20260906",
+    "input_dir": "20260909",
     "output_dir": "reports"
   }
 }

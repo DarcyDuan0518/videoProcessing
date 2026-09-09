@@ -145,10 +145,10 @@ notepad .\config.json
 1. `launch.input_dir`：双击 `run_video_sorter.bat` 时要处理的视频根目录。可填绝对路径（例如 `E:\\CameraArchive`）或相对项目的 `data`。
 2. `launch.output_dir`：CSV 检查报告目录；同一源视频目录每次成功检查都会覆盖该目录中的旧报告。
 3. `filename_time.regex` 必须匹配视频文件名中的日期、时间。例如默认规则匹配 `Camera_20260907_221530.mp4`。
-4. `night.start` 与 `night.end`：夜间时段，可跨日，如 `22:00` 到 `07:00`。
+4. `night.direct_candidate_start` 与 `night.direct_candidate_end`：深夜直入可删除候选的时段，默认 `23:00` 到次日 `07:00`。`night.two_person_windows`：需同一帧至少检测到 2 人才保留的过渡时段，默认 `21:00`–`23:00` 与 `07:00`–`08:00`。
 5. `night.keep_videos_with_person`：
-   - `false`：夜间视频即使检测到人，也进入可删除候选；
-   - `true`：夜间检测到人的视频保留，只有无人视频进入候选。
+   - `false`：应用深夜直入候选与过渡时段两人保留规则；其他时段检测到至少 1 人即保留；
+   - `true`：忽略所有夜间与过渡时段规则，所有视频检测到至少 1 人即保留。
 6. `sample_interval_seconds`：每隔多少秒抽一帧。值越小，漏检概率越低但耗时越长。
 7. `deletion.target_folder_name`：人工复核后移动候选视频的源目录内子文件夹名称；扫描时会自动跳过该文件夹。
 
@@ -202,7 +202,7 @@ notepad .\config.json
 | --- | --- |
 | `relative_path` | 相对源视频目录的路径。 |
 | `status` | `ok` 或 `error`。 |
-| `processing_mode` | `inferred` 表示已进行人员识别；`night_direct_candidate` 表示按夜间规则直接候选、未读取视频。 |
+| `processing_mode` | `inferred` 表示按普通规则进行人员识别；`two_person_required` 表示过渡时段且需同一采样帧至少 2 人才保留；`night_direct_candidate` 表示深夜直入候选、未读取视频。 |
 | `sampled_frames` / `person_frames` | 成功采样帧数与检测到人的帧数。 |
 | `result` | `检测到人`、`可删除候选` 或 `处理失败`。 |
 | `notes` | 判定原因或错误信息。 |
